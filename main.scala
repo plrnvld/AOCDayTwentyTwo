@@ -12,17 +12,41 @@ object Main {
 
         val bootRules = lines.map(parse)
 
-        for (rule <- bootRules)
-            println(rule)
+        var minX = bootRules.head.minX
+        var maxX = bootRules.head.maxX
+        var minY = bootRules.head.minY
+        var maxY = bootRules.head.maxY
+        var minZ = bootRules.head.minZ
+        var maxZ = bootRules.head.maxZ
+
+        for (rule <- bootRules.drop(1)) {
+            minX = minX.min(rule.minX)
+            maxX = maxX.max(rule.maxX)
+            minY = minY.min(rule.minY)
+            maxY = maxY.max(rule.maxY)
+            minZ = minZ.min(rule.minZ)
+            maxZ = maxZ.max(rule.maxZ)
+        }
+            
+        println(s"$minX <= x <= $maxX, $minY <= y <= $maxY, $minZ <= z <= $maxZ")
 
         var onCount = 0;
 
-        for (x <- rangeToCheck) {
-            for (y <- rangeToCheck) {
-                for (z <- rangeToCheck) {
+        for (x <- minX to maxX) {
+            println()
+            println(s"Calculate x = $x")
+            val matchingBootRules = bootRules.filter(b => x >= b.minX && x <= b.maxX)
+
+            for (y <- minY to maxY) {
+                val twiceMatchingBootRules = matchingBootRules.filter(b => y >= b.minY && y <= b.maxY)
+                
+                if (y % 1000 == 0)
+                    print(s"$y,")
+
+                for (z <- minZ to maxZ) {
                     var isOn = false;
 
-                    for (rule <- bootRules) {
+                    for (rule <- twiceMatchingBootRules) {
                         if (isOn != rule.switchOn && rule.isInside(x, y, z)) {
                             isOn = rule.switchOn
                         }
