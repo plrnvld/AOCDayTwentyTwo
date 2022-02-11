@@ -99,10 +99,16 @@ object Main {
 case class BootRule(val switchOn: Boolean, val minX: Int, val maxX: Int, val minY: Int, val maxY: Int, val minZ: Int, val maxZ: Int) {
     def contains(x: Int, y: Int, z: Int): Boolean = x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ
 
-    def sliceYZ(): BootRuleSlice = BootRuleSlice(switchOn, minY, maxY, minZ, maxZ)
+    def sliceYZ(): BootRuleSlice = BootRuleSlice(switchOn, Rect(minY, maxY, minZ, maxZ))
 }
 
-case class BootRuleSlice(val switchOn: Boolean, val minHor: Int, val maxHor: Int, val minVer: Int, val maxVer: Int) {
-     def contains(x: Int, y: Int): Boolean = x >= minHor && x <= maxHor && y >= minVer && y <= maxVer
-     def surfaceArea: Int = (maxHor - minHor + 1) * (maxVer - minVer + 1)
+case class BootRuleSlice(val switchOn: Boolean, val rect: Rect) {
+     def contains(x: Int, y: Int): Boolean = x >= rect.minX && x <= rect.maxX && y >= rect.minY && y <= rect.maxY    
+}
+
+case class Rect(val minX: Int, val maxX: Int, val minY: Int, val maxY: Int) {
+    def surfaceArea: Int = (maxX - minX + 1) * (maxY - minY + 1)
+    def overlapsWith(other: Rect): Boolean = {
+        maxX >= other.minX && minX <= other.maxX && maxY >= other.minY && minY <= other.maxY
+    }
 }
