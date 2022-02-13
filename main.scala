@@ -4,7 +4,7 @@ import scala.annotation.switch
 
 object Main {
     def main(args: Array[String]): Unit = {
-        val lines = Source.fromFile("Example.txt").getLines.toList
+        val lines = Source.fromFile("Example2.txt").getLines.toList
         println(s"Lines count: ${lines.size}")
 
         val bootRules = lines.map(parse)
@@ -41,32 +41,36 @@ object Main {
 
             var score = 0L
             println(s"Calculate slice for x = $sliceNum")
-            println("[                                        ]")
+            println("[                                         ]")
             print(" ")
 
             val widthPart = border.width / 40
             var progress = 0
-            var prevColumns = (Seq[BootRuleColumn](), 0L)
+            var prevResult = (Seq[BootRuleColumn](), 0L)
 
             for (x <- border.minX to border.maxX) {
+                /*
+                for (y <- border.minY to border.maxY) {
+                    if (ruleOutcome(x, y, activeSlices)) {
+                        score += 1
+                    }
+
+                }
+                */
+                
                 if (progress % widthPart == 0)
                     print("#")
 
-                val columns = activeSlices.filter(a => x >= a.rect.minX && x <= a.rect.maxX).map(_.toColumn())
+                
+                val activeColumns = activeSlices.filter(a => x >= a.rect.minX && x <= a.rect.maxX).map(_.toColumn())
+                var columnsScore = 0L
 
-                if (columns == prevColumns._1) {
-                    score += prevColumns._2
-                } else {
-                    var columnScore = 0L                        
-                    for (y <- border.minY to border.maxY) {
-                        if (ruleOutcome(y, columns)) {
-                            columnScore += 1
-                        }
-                    }
-
-                    prevColumns = (columns, columnScore)
-                    score += columnScore
+                if (!activeColumns.isEmpty) {
+                    columnsScore = columnScore2(x, activeColumns, prevResult)
+                    score += columnsScore
                 }
+
+                prevResult = (activeColumns, columnsScore)               
 
                 progress += 1
             }
@@ -75,6 +79,62 @@ object Main {
             println(s"  Score = $score")
             score
         }
+    }
+
+    def columnScore(x: Int, activeColumns: Seq[BootRuleColumn], prevResult: (Seq[BootRuleColumn], Long)): Long = {
+        if (activeColumns == prevResult._1) {
+            prevResult._2
+        } else {
+            var columnScore = 0L
+
+            val (minY, maxY) = columnsBorder(activeColumns)
+
+            for (y <- minY to maxY) {
+                if (ruleOutcome(y, activeColumns)) {
+                    columnScore += 1
+                }
+            }
+
+            columnScore
+        }
+    }
+
+    def columnScore2(x: Int, activeColumns: Seq[BootRuleColumn], prevResult: (Seq[BootRuleColumn], Long)): Long = {
+        if (activeColumns == prevResult._1) {
+            prevResult._2
+        } else {
+            var columnScore = 0L
+
+            val (minY, maxY) = columnsBorder(activeColumns)
+
+            var currPos = minY
+
+            var nextPos = findNextPos(currPos, activeColumns)
+            var currSwitch = ruleOutcome(currPos, activeColumns)
+
+            while (nextPos.isDefined) {
+                if (currSwitch) {
+                    columnScore = nextPos.get - currPos
+                }
+
+                currPos = nextPos.get
+                nextPos = findNextPos(currPos, activeColumns)
+                currSwitch = ruleOutcome(currPos, activeColumns)
+            }
+
+            if (currSwitch) {
+                columnScore = maxY - currPos + 1
+            }
+            
+            columnScore
+        }
+    }
+
+    def findNextPos(currPos: Int, activeColumns: Seq[BootRuleColumn]): Option[Int] = {
+
+        var biggerYs = activeColumns.map(_.minY).filter(y => y > currPos)
+
+        biggerYs.reduceOption(_ min _)
     }
 
     def ruleOutcome(x: Int, y: Int, z: Int, rules: Seq[BootRule]): Boolean = {
@@ -136,7 +196,19 @@ object Main {
         }
 
         Rect(minX, maxX, minY, maxY)
-    }     
+    }
+
+    def columnsBorder(columns: Seq[BootRuleColumn]): (Int, Int) = {
+        var minY = columns.head.minY
+        var maxY = columns.head.minY
+        
+        for (column <- columns.drop(1)) {
+            minY = minY.min(column.minY)
+            maxY = maxY.max(column.maxY)
+        }
+
+        (minY, maxY)
+    }   
 }
 
 case class BootRule(val switchOn: Boolean, val minX: Int, val maxX: Int, val minY: Int, val maxY: Int, val minZ: Int, val maxZ: Int) {
