@@ -1,12 +1,9 @@
 import scala.io.Source
 import java.util.regex.Pattern
-import scala.annotation.switch
 
 object Main {
     def main(args: Array[String]): Unit = {
-        val lines = Source.fromFile("Example2.txt").getLines.toList
-        println(s"Lines count: ${lines.size}")
-
+        val lines = Source.fromFile("Input.txt").getLines.toList
         val bootRules = lines.map(parse)
 
         val (minX, maxX, minY, maxY, minZ, maxZ) = ranges(bootRules)
@@ -14,27 +11,22 @@ object Main {
         println(s"$minX <= x <= $maxX, $minY <= y <= $maxY, $minZ <= z <= $maxZ")
 
         var onCount = 0L;
-        var activeRules = bootRules
         var prevResult = (Seq[BootRuleSlice](), 0L)
 
         for (x <- minX to maxX) {
-            activeRules = bootRules.filter(b => x >= b.minX && x <= b.maxX)          
+            val activeSlices = bootRules.filter(b => b.minX <= x && b.maxX >= x).map(_.sliceYZ())
 
-            if (!activeRules.isEmpty) {
-                val activeSlices = activeRules.map(_.sliceYZ())
+            val score = slicesScore(x, activeSlices, prevResult)
+            prevResult = (activeSlices, score)
 
-                val score = slicesScore(x, activeSlices, prevResult)
-                prevResult = (activeSlices, score)
-
-                onCount += score
-            }
+            onCount += score
         }
 
         println(s"On count = $onCount")
     }
 
     def slicesScore(sliceNum: Int, activeSlices: Seq[BootRuleSlice], prevResult: (Seq[BootRuleSlice], Long) ): Long = {
-        if (activeSlices == prevResult._1) {
+        if (activeSlices equals prevResult._1) {
             prevResult._2
         } else {
             val border = slicesBorder(activeSlices)
@@ -49,28 +41,21 @@ object Main {
             var prevResult = (Seq[BootRuleColumn](), 0L)
 
             for (x <- border.minX to border.maxX) {
-                /*
-                for (y <- border.minY to border.maxY) {
-                    if (ruleOutcome(x, y, activeSlices)) {
-                        score += 1
-                    }
-
-                }
-                */
-                
                 if (progress % widthPart == 0)
                     print("#")
                 
-                val activeColumns = activeSlices.filter(a => x >= a.rect.minX && x <= a.rect.maxX).map(_.toColumn())
+                val activeColumns = activeSlices
+                    .filter(a => a.rect.minX <= x && a.rect.maxX >= x)
+                    .map(_.toColumn())
+
                 var columnsScore = 0L
 
                 if (!activeColumns.isEmpty) {
-                    columnsScore = columnScoreOptimized(x, activeColumns, prevResult)
+                    columnsScore = columnScore(x, activeColumns, prevResult)
                     score += columnsScore
                 }
 
-                prevResult = (activeColumns, columnsScore)               
-
+                prevResult = (activeColumns, columnsScore)              
                 progress += 1
             }
 
@@ -81,67 +66,24 @@ object Main {
     }
 
     def columnScore(x: Int, activeColumns: Seq[BootRuleColumn], prevResult: (Seq[BootRuleColumn], Long)): Long = {
-        if (activeColumns == prevResult._1) {
+        if (activeColumns equals prevResult._1) {
             prevResult._2
         } else {
-            var columnScore = 0L
-
             val (minY, maxY) = columnsBorder(activeColumns)
-
-            for (y <- minY to maxY) {
-                if (ruleOutcome(y, activeColumns)) {
-                    columnScore += 1
-                }
-            }
-
-            columnScore
+            toSwitchRanges(minY, maxY, activeColumns).map(_.switchOnCount).sum
         }
     }
 
-    def columnScoreOptimized(x: Int, activeColumns: Seq[BootRuleColumn], prevResult: (Seq[BootRuleColumn], Long)): Long = {
-        if (activeColumns == prevResult._1) {
-            prevResult._2
-        } else {
-            var columnScore = 0L
-
-            val (minY, maxY) = columnsBorder(activeColumns)
-
-            var currPos = minY
-
-            var nextPos = findNextPos(currPos, maxY, activeColumns)
-            var currSwitch = ruleOutcome(currPos, activeColumns)
-
-            while (nextPos.isDefined) {
-                if (currSwitch) {
-                    columnScore = nextPos.get - currPos
-                }
-
-                currPos = nextPos.get
-                nextPos = findNextPos(currPos, maxY, activeColumns)
-                currSwitch = ruleOutcome(currPos, activeColumns)
-            }
-
-            if (currSwitch) {
-                columnScore = maxY - currPos + 1
-            }
-            
-            columnScore
-        }
-    }
-
-    def findNextPos(currPos: Int, maxY: Int, activeColumns: Seq[BootRuleColumn]): Option[Int] = {
-        var biggerYs = activeColumns
+    def toSwitchRanges(min: Int, max: Int, activeColumns: Seq[BootRuleColumn]): Seq[SwitchRange] = {
+        val allSwitches = (activeColumns
             .flatMap(c => List[Int](c.minY, c.maxY + 1))
-            .filter(y => y > currPos && y <= maxY)
-            .reduceOption(_ min _)
-    }
+            .filter(y => y >= min && y <= max) ++ List(min, max + 1))
+            .distinct
+            .sorted
 
-    def ruleOutcome(x: Int, y: Int, z: Int, rules: Seq[BootRule]): Boolean = {
-        rules.filter(_.contains(x, y, z)).map(_.switchOn).lastOption.getOrElse(false)
-    }
+        val pairs = allSwitches zip allSwitches.tail
 
-    def ruleOutcome(x: Int, y: Int, slices: Seq[BootRuleSlice]): Boolean = {
-        slices.filter(_.contains(x, y)).map(_.switchOn).lastOption.getOrElse(false)
+        pairs.map(t => SwitchRange(ruleOutcome(t._1, activeColumns), t._1, t._2 - 1))
     }
 
     def ruleOutcome(y: Int, columns: Seq[BootRuleColumn]): Boolean = {
@@ -198,27 +140,19 @@ object Main {
     }
 
     def columnsBorder(columns: Seq[BootRuleColumn]): (Int, Int) = {
-        var minY = columns.head.minY
-        var maxY = columns.head.minY
-        
-        for (column <- columns.drop(1)) {
-            minY = minY.min(column.minY)
-            maxY = maxY.max(column.maxY)
-        }
-
-        (minY, maxY)
-    }   
+        columns
+            .map(c => (c.minY, c.maxY))
+            .reduce((t1, t2) => (t1._1 min t2._1, t1._2 max t2._2))
+    }
 }
 
 case class BootRule(val switchOn: Boolean, val minX: Int, val maxX: Int, val minY: Int, val maxY: Int, val minZ: Int, val maxZ: Int) {
     def contains(x: Int, y: Int, z: Int): Boolean = x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ
-
     def sliceYZ(): BootRuleSlice = BootRuleSlice(switchOn, Rect(minY, maxY, minZ, maxZ))
 }
 
 case class BootRuleSlice(val switchOn: Boolean, val rect: Rect) {
      def contains(x: Int, y: Int): Boolean = x >= rect.minX && x <= rect.maxX && y >= rect.minY && y <= rect.maxY
-
      def toColumn(): BootRuleColumn = BootRuleColumn(switchOn, rect.minY, rect.maxY)
 }
 
@@ -227,10 +161,9 @@ case class BootRuleColumn(val switchOn: Boolean, val minY: Int, val maxY: Int) {
 }
 
 case class Rect(val minX: Int, val maxX: Int, val minY: Int, val maxY: Int) {
-    def surfaceArea: Int = (maxX - minX + 1) * (maxY - minY + 1)
-    def overlapsWith(other: Rect): Boolean = {
-        maxX >= other.minX && minX <= other.maxX && maxY >= other.minY && minY <= other.maxY
-    }
-
     def width = maxX - minX + 1
+}
+
+case class SwitchRange(val switchOn: Boolean, val min: Int, val max: Int) {
+    def switchOnCount = if (switchOn) max - min + 1 else 0
 }
