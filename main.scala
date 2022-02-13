@@ -31,37 +31,27 @@ object Main {
         } else {
             val border = slicesBorder(activeSlices)
 
-            var score = 0L
-            println(s"Calculate slice for x = $sliceNum")
-            println("[                                         ]")
-            print(" ")
-
-            val widthPart = border.width / 40
-            var progress = 0
+            var slicesScore = 0L
+            println(s"Calculation for slice x = $sliceNum")
+            
             var prevResult = (Seq[BootRuleColumn](), 0L)
 
             for (x <- border.minX to border.maxX) {
-                if (progress % widthPart == 0)
-                    print("#")
-                
                 val activeColumns = activeSlices
                     .filter(a => a.rect.minX <= x && a.rect.maxX >= x)
                     .map(_.toColumn())
 
-                var columnsScore = 0L
+                var score = 0L
 
                 if (!activeColumns.isEmpty) {
-                    columnsScore = columnScore(x, activeColumns, prevResult)
-                    score += columnsScore
+                    score = columnScore(x, activeColumns, prevResult)
+                    slicesScore += score
                 }
 
-                prevResult = (activeColumns, columnsScore)              
-                progress += 1
+                prevResult = (activeColumns, score)              
             }
 
-            println()
-            println(s"  Score = $score")
-            score
+            slicesScore
         }
     }
 
@@ -161,7 +151,6 @@ case class BootRuleColumn(val switchOn: Boolean, val minY: Int, val maxY: Int) {
 }
 
 case class Rect(val minX: Int, val maxX: Int, val minY: Int, val maxY: Int) {
-    def width = maxX - minX + 1
 }
 
 case class SwitchRange(val switchOn: Boolean, val min: Int, val max: Int) {
