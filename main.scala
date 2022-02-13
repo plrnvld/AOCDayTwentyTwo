@@ -60,13 +60,12 @@ object Main {
                 
                 if (progress % widthPart == 0)
                     print("#")
-
                 
                 val activeColumns = activeSlices.filter(a => x >= a.rect.minX && x <= a.rect.maxX).map(_.toColumn())
                 var columnsScore = 0L
 
                 if (!activeColumns.isEmpty) {
-                    columnsScore = columnScore2(x, activeColumns, prevResult)
+                    columnsScore = columnScoreOptimized(x, activeColumns, prevResult)
                     score += columnsScore
                 }
 
@@ -99,7 +98,7 @@ object Main {
         }
     }
 
-    def columnScore2(x: Int, activeColumns: Seq[BootRuleColumn], prevResult: (Seq[BootRuleColumn], Long)): Long = {
+    def columnScoreOptimized(x: Int, activeColumns: Seq[BootRuleColumn], prevResult: (Seq[BootRuleColumn], Long)): Long = {
         if (activeColumns == prevResult._1) {
             prevResult._2
         } else {
@@ -109,7 +108,7 @@ object Main {
 
             var currPos = minY
 
-            var nextPos = findNextPos(currPos, activeColumns)
+            var nextPos = findNextPos(currPos, maxY, activeColumns)
             var currSwitch = ruleOutcome(currPos, activeColumns)
 
             while (nextPos.isDefined) {
@@ -118,7 +117,7 @@ object Main {
                 }
 
                 currPos = nextPos.get
-                nextPos = findNextPos(currPos, activeColumns)
+                nextPos = findNextPos(currPos, maxY, activeColumns)
                 currSwitch = ruleOutcome(currPos, activeColumns)
             }
 
@@ -130,11 +129,11 @@ object Main {
         }
     }
 
-    def findNextPos(currPos: Int, activeColumns: Seq[BootRuleColumn]): Option[Int] = {
-
-        var biggerYs = activeColumns.map(_.minY).filter(y => y > currPos)
-
-        biggerYs.reduceOption(_ min _)
+    def findNextPos(currPos: Int, maxY: Int, activeColumns: Seq[BootRuleColumn]): Option[Int] = {
+        var biggerYs = activeColumns
+            .flatMap(c => List[Int](c.minY, c.maxY + 1))
+            .filter(y => y > currPos && y <= maxY)
+            .reduceOption(_ min _)
     }
 
     def ruleOutcome(x: Int, y: Int, z: Int, rules: Seq[BootRule]): Boolean = {
